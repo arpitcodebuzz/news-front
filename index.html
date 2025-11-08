@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Visa News Search</title>
   <style>
     body {
@@ -42,26 +43,49 @@
 
     #news-container {
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
       gap: 20px;
-      padding: 20px;
+      padding: 20px 0;
     }
 
     .news-card {
       background: white;
       border-radius: 10px;
-      padding: 20px;
+      padding: 15px;
       box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
       transition: transform 0.2s;
+      display: flex;
+      flex-direction: column;
     }
 
     .news-card:hover {
       transform: translateY(-5px);
     }
 
-    h2 { color: #2c3e50; margin-bottom: 8px; }
-    h3 { color: #34495e; margin-bottom: 10px; font-size: 16px; }
-    p { color: #555; font-size: 14px; }
+    .news-image {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+
+    h2 {
+      color: #2c3e50;
+      margin-bottom: 8px;
+      font-size: 18px;
+    }
+
+    h3 {
+      color: #34495e;
+      margin-bottom: 8px;
+      font-size: 16px;
+    }
+
+    p {
+      color: #555;
+      font-size: 14px;
+    }
 
     .toggle-content {
       margin-top: 10px;
@@ -76,8 +100,44 @@
     .toggle-content:hover {
       background-color: #27ae60;
     }
+
+    a {
+      margin-top: 10px;
+      color: #3498db;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    #pagination-container {
+      text-align: center;
+      margin-top: 20px;
+    }
+
+    #pagination-container button {
+      margin: 0 5px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      cursor: pointer;
+    }
+
+    #pagination-container button.active {
+      background-color: #3498db;
+      color: #fff;
+      border: 1px solid #3498db;
+    }
+
+    #pagination-container button:hover {
+      background-color: #2980b9;
+      color: #fff;
+    }
   </style>
 </head>
+
 <body>
   <h1>Visa & Immigration News</h1>
 
@@ -88,23 +148,32 @@
   </div>
 
   <div id="news-container"></div>
+  <div id="pagination-container"></div>
 
   <script>
-    async function fetchVisaSerpiNews(country = "") {
+    let currentPage = 1;
+    let currentCountry = "";
+    const pageSize = 10; // news per page
+
+    async function fetchVisaSerpiNews(country = "", page = 1) {
+      currentPage = page;
+      currentCountry = country;
+
       const container = document.getElementById("news-container");
+      const paginationContainer = document.getElementById("pagination-container");
       container.innerHTML = "<p>Loading news...</p>";
+      paginationContainer.innerHTML = "";
 
       try {
-        let url = "https://visa-news.onrender.com/admin-api/newsData/visaSerpi";
-        if (country) {
-          url += `?country=${encodeURIComponent(country)}`;
-        }
+        let url = `https://visa-news.onrender.com/admin-api/newsData/visaSerpi?page=${page}&pageSize=${pageSize}`;
+        if (country) url += `&country=${encodeURIComponent(country)}`;
 
         const res = await fetch(url);
         const data = await res.json();
 
-        const newsList = data.data || [];
-        displayNews(newsList);
+        displayNews(data.data || []);
+        displayPagination(data.totalPages || 1, data.page || 1);
+
       } catch (error) {
         console.error("Error fetching news:", error);
         container.innerHTML = "<p>Error loading news.</p>";
@@ -116,7 +185,7 @@
       container.innerHTML = "";
 
       if (!newsList.length) {
-        container.innerHTML = "<p>No news found for this country.</p>";
+        container.innerHTML = "<p>No news found.</p>";
         return;
       }
 
@@ -124,7 +193,10 @@
         const div = document.createElement("div");
         div.classList.add("news-card");
 
+        const imageUrl = news.thumbnail || news.image || news.meta_image || "";
+
         div.innerHTML = `
+          ${imageUrl ? `<img src="${imageUrl}" class="news-image">` : ""}
           <h2>${news.country || "Unknown Country"}</h2>
           <h3>${news.title || "No Title"}</h3>
           <p><strong>Published:</strong> ${news.published_date || "Unknown"}</p>
@@ -149,26 +221,53 @@
       });
     }
 
+    function displayPagination(totalPages, currentPage) {
+      const paginationContainer = document.getElementById("pagination-container");
+      paginationContainer.innerHTML = "";
+
+      if (totalPages <= 1) return;
+
+      const prevBtn = document.createElement("button");
+      prevBtn.textContent = "Previous";
+      prevBtn.disabled = currentPage === 1;
+      prevBtn.addEventListener("click", () => fetchVisaSerpiNews(currentCountry, currentPage - 1));
+      paginationContainer.appendChild(prevBtn);
+
+      for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement("button");
+        btn.textContent = i;
+        if (i === currentPage) btn.classList.add("active");
+        btn.addEventListener("click", () => fetchVisaSerpiNews(currentCountry, i));
+        paginationContainer.appendChild(btn);
+      }
+
+      const nextBtn = document.createElement("button");
+      nextBtn.textContent = "Next";
+      nextBtn.disabled = currentPage === totalPages;
+      nextBtn.addEventListener("click", () => fetchVisaSerpiNews(currentCountry, currentPage + 1));
+      paginationContainer.appendChild(nextBtn);
+    }
+
     document.getElementById("search-btn").addEventListener("click", () => {
       const query = document.getElementById("country-input").value.trim();
-      fetchVisaSerpiNews(query);
+      fetchVisaSerpiNews(query, 1);
     });
 
     document.getElementById("reset-btn").addEventListener("click", () => {
       document.getElementById("country-input").value = "";
-      fetchVisaSerpiNews();
+      fetchVisaSerpiNews("", 1);
     });
 
-    // Allow pressing Enter
     document.getElementById("country-input").addEventListener("keypress", e => {
       if (e.key === "Enter") {
         const query = e.target.value.trim();
-        fetchVisaSerpiNews(query);
+        fetchVisaSerpiNews(query, 1);
       }
     });
 
-    // Load all on page load
+    // Load all news on page load
     fetchVisaSerpiNews();
   </script>
 </body>
+
 </html>
